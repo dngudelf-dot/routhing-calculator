@@ -78,18 +78,21 @@ KAKAO_ADDRESS_API_URL = "https://dapi.kakao.com/v2/local/search/address.json"
 KAKAO_KEYWORD_API_URL = "https://dapi.kakao.com/v2/local/search/keyword.json"
 KAKAO_DIRECTIONS_API_URL = "https://apis-navi.kakaomobility.com/v1/directions"
 
+# HTTP 세션 (연결 재사용으로 속도 향상)
+_session = requests.Session()
+_session.headers.update({"Authorization": f"KakaoAK {API_KEY}"})
+_session.verify = False
+
 
 # ============================================================
 # 유틸리티 함수
 # ============================================================
+@st.cache_data(ttl=3600, show_spinner=False)
 def validate_address(address: str) -> Optional[Tuple[float, float, str]]:
-    """주소 검증 (Geocoding) - 1차: 주소 검색, 2차: 키워드 검색"""
-    headers = {"Authorization": f"KakaoAK {API_KEY}"}
-    
+    """주소 검증 (Geocoding) - 캐싱 적용"""
     # 1차: 주소 검색
     try:
-        response = requests.get(KAKAO_ADDRESS_API_URL, headers=headers, 
-                                params={"query": address}, timeout=10, verify=False)
+        response = _session.get(KAKAO_ADDRESS_API_URL, params={"query": address}, timeout=5)
         response.raise_for_status()
         documents = response.json().get("documents", [])
         if documents:
@@ -103,8 +106,7 @@ def validate_address(address: str) -> Optional[Tuple[float, float, str]]:
     
     # 2차: 키워드 검색
     try:
-        response = requests.get(KAKAO_KEYWORD_API_URL, headers=headers,
-                                params={"query": address}, timeout=10, verify=False)
+        response = _session.get(KAKAO_KEYWORD_API_URL, params={"query": address}, timeout=5)
         response.raise_for_status()
         documents = response.json().get("documents", [])
         if documents:
@@ -120,10 +122,9 @@ def validate_address(address: str) -> Optional[Tuple[float, float, str]]:
 
 def _try_route(ox, oy, dx, dy):
     """단일 경로 계산 시도"""
-    headers = {"Authorization": f"KakaoAK {API_KEY}", "Content-Type": "application/json"}
     params = {"origin": f"{ox},{oy}", "destination": f"{dx},{dy}", "priority": "RECOMMEND"}
     try:
-        response = requests.get(KAKAO_DIRECTIONS_API_URL, headers=headers, params=params, timeout=15, verify=False)
+        response = _session.get(KAKAO_DIRECTIONS_API_URL, params=params, timeout=10)
         response.raise_for_status()
         routes = response.json().get("routes", [])
         if not routes:
@@ -139,7 +140,7 @@ def _try_route(ox, oy, dx, dy):
 
 
 def calculate_route(ox, oy, dx, dy):
-    """경로 계산 - 105 에러 시 주변 좌표로 재시도"""
+    """경로 계산 - 105 에러 시 주변 좌표로 재시도 (최적화)"""
     result = _try_route(ox, oy, dx, dy)
     if result is None:
         return None
@@ -148,13 +149,17 @@ def calculate_route(ox, oy, dx, dy):
         return (dist, dur)
     
     if code in [104, 105, 106]:
-        offsets = [(0.0005, 0), (-0.0005, 0), (0, 0.0005), (0, -0.0005),
-                   (0.0005, 0.0005), (-0.0005, 0.0005), (-0.0005, -0.0005), (0.0005, -0.0005),
-                   (0.001, 0), (-0.001, 0), (0, 0.001), (0, -0.001)]
+        # 최적화: 핵심 오프셋만 사용 (8개 → 6개)
+        offsets = [(0.0005, 0), (-0.0005, 0), (0, 0.0005), (0, -0.0005), (0.001, 0), (0, 0.001)]
         for ddx, ddy in offsets:
-            for adj in [_try_route(ox+ddx, oy+ddy, dx, dy), _try_route(ox, oy, dx+ddx, dy+ddy)]:
-                if adj and adj[2] == 0 and adj[0] > 0:
-                    return (adj[0], adj[1])
+            # 출발지 조정
+            adj = _try_route(ox+ddx, oy+ddy, dx, dy)
+            if adj and adj[2] == 0 and adj[0] > 0:
+                return (adj[0], adj[1])
+            # 도착지 조정
+            adj = _try_route(ox, oy, dx+ddx, dy+ddy)
+            if adj and adj[2] == 0 and adj[0] > 0:
+                return (adj[0], adj[1])
     return None
 
 
