@@ -10,8 +10,12 @@ Streamlit을 활용한 거리/시간 계산기
 import streamlit as st
 import requests
 import pandas as pd
+import urllib3
 from io import BytesIO
 from typing import Optional, Tuple
+
+# SSL 경고 메시지 숨김
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ============================================================
 # 페이지 설정
@@ -50,6 +54,19 @@ st.markdown("""
     .metric-item { text-align: center; }
     .metric-label { font-size: 0.9rem; opacity: 0.9; margin-bottom: 0.25rem; }
     .footer { text-align: center; padding: 2rem; color: #94a3b8; font-size: 0.9rem; }
+    
+    /* 사이드바 타이틀 통일 */
+    .sidebar .stMarkdown h3 { font-size: 1.1rem !important; font-weight: 600 !important; }
+    .sidebar .stTextInput label { font-size: 0.9rem !important; }
+    
+    /* 메인 영역 타이틀 통일 */
+    .stTabs [data-baseweb="tab-list"] button { font-size: 1rem !important; }
+    .stMarkdown h3 { font-size: 1.2rem !important; font-weight: 600 !important; margin-bottom: 0.5rem !important; }
+    .stMarkdown h4 { font-size: 1.05rem !important; font-weight: 600 !important; margin-bottom: 0.5rem !important; }
+    
+    /* 본문 텍스트 크기 */
+    .stMarkdown p, .stMarkdown li { font-size: 0.9rem !important; }
+    .stDataFrame { font-size: 0.85rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
