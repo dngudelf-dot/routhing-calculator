@@ -211,7 +211,10 @@ with st.sidebar:
         if st.button("🔍 상차지 주소 확인"):
             with st.spinner("검증 중..."):
                 result = validate_address(origin_address)
-                st.success(f"✅ {result[2]}") if result else st.error("❌ 주소를 찾을 수 없습니다.")
+                if result:
+                    st.success(f"✅ {result[2]}")
+                else:
+                    st.error("❌ 주소를 찾을 수 없습니다.")
     else:
         origin_address = "서울특별시 중구 세종대로 110"
 
