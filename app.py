@@ -67,6 +67,10 @@ st.markdown("""
     /* 본문 텍스트 크기 */
     .stMarkdown p, .stMarkdown li { font-size: 0.9rem !important; }
     .stDataFrame { font-size: 0.85rem !important; }
+    
+    /* 데이터프레임 비고 컬럼 스크롤 개선 */
+    .stDataFrame [data-testid="stDataFrameResizable"] { max-width: 100%; }
+    .stDataFrame td { white-space: pre-wrap !important; word-wrap: break-word !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -139,8 +143,25 @@ def _try_route(ox, oy, dx, dy):
         return None
 
 
+import math
+
+def _haversine_distance(lon1, lat1, lon2, lat2):
+    """두 좌표 간의 직선 거리 계산 (미터)"""
+    R = 6371000  # 지구 반지름 (미터)
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi/2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda/2)**2
+    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
 def calculate_route(ox, oy, dx, dy):
     """경로 계산 - 105 에러 시 주변 좌표로 재시도 (최적화)"""
+    # 동일/근접 좌표 체크 (100m 이내면 동일 위치로 간주)
+    straight_dist = _haversine_distance(ox, oy, dx, dy)
+    if straight_dist < 100:
+        return (0, 0)
+    
     result = _try_route(ox, oy, dx, dy)
     if result is None:
         return None
@@ -291,7 +312,7 @@ if menu == "🚛 거리 계산":
                                     
                                     if not dest:
                                         all_results.append({"배송호차": name, "운행순번": seq, "출발지": cname, "도착지": cust,
-                                                          "구간거리(km)": "-", "구간소요시간(분)": "-",
+                                                          "구간거리(km)": "-", "구간소요시간": "-",
                                                           "누적거리(km)": meters_to_km(cdist), "누적시간": format_duration(cdur), "비고": "주소 확인 필요"})
                                         cname = cust
                                         continue
@@ -303,11 +324,11 @@ if menu == "🚛 거리 계산":
                                         dist, dur = route
                                         gdist += dist; gdur += dur; cdist += dist; cdur += dur
                                         all_results.append({"배송호차": name, "운행순번": seq, "출발지": cname, "도착지": cust,
-                                                          "구간거리(km)": meters_to_km(dist), "구간소요시간(분)": seconds_to_minutes(dur),
+                                                          "구간거리(km)": meters_to_km(dist), "구간소요시간": format_duration(dur),
                                                           "누적거리(km)": meters_to_km(cdist), "누적시간": format_duration(cdur), "비고": ""})
                                     else:
                                         all_results.append({"배송호차": name, "운행순번": seq, "출발지": cname, "도착지": cust,
-                                                          "구간거리(km)": "-", "구간소요시간(분)": "-",
+                                                          "구간거리(km)": "-", "구간소요시간": "-",
                                                           "누적거리(km)": meters_to_km(cdist), "누적시간": format_duration(cdur), "비고": "경로 계산 실패"})
                                     cx, cy, cname = dx, dy, cust
                                 
@@ -338,7 +359,16 @@ if menu == "🚛 거리 계산":
                 st.markdown("---")
                 st.markdown("#### 📋 상세 결과")
                 df_results = pd.DataFrame(st.session_state.results)
-                st.dataframe(df_results, use_container_width=True, hide_index=True)
+                
+                # 비고 컬럼이 잘리지 않도록 컬럼 설정
+                column_config = {
+                    "비고": st.column_config.TextColumn(
+                        "비고",
+                        width="large",
+                        help="비고 내용 (스크롤하여 전체 내용 확인)"
+                    )
+                }
+                st.dataframe(df_results, use_container_width=True, hide_index=True, column_config=column_config)
                 
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
