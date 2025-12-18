@@ -322,10 +322,16 @@ if menu == "🚛 거리 계산":
                                     
                                     if route:
                                         dist, dur = route
-                                        gdist += dist; gdur += dur; cdist += dist; cdur += dur
-                                        all_results.append({"배송호차": name, "운행순번": seq, "출발지": cname, "도착지": cust,
-                                                          "구간거리(km)": meters_to_km(dist), "구간소요시간": format_duration(dur),
-                                                          "누적거리(km)": meters_to_km(cdist), "누적시간": format_duration(cdur), "비고": ""})
+                                        if dist == 0 and dur == 0:
+                                            # 동일 주소인 경우
+                                            all_results.append({"배송호차": name, "운행순번": seq, "출발지": cname, "도착지": cust,
+                                                              "구간거리(km)": "", "구간소요시간": "",
+                                                              "누적거리(km)": meters_to_km(cdist), "누적시간": format_duration(cdur), "비고": "동일 주소"})
+                                        else:
+                                            gdist += dist; gdur += dur; cdist += dist; cdur += dur
+                                            all_results.append({"배송호차": name, "운행순번": seq, "출발지": cname, "도착지": cust,
+                                                              "구간거리(km)": meters_to_km(dist), "구간소요시간": format_duration(dur),
+                                                              "누적거리(km)": meters_to_km(cdist), "누적시간": format_duration(cdur), "비고": ""})
                                     else:
                                         all_results.append({"배송호차": name, "운행순번": seq, "출발지": cname, "도착지": cust,
                                                           "구간거리(km)": "-", "구간소요시간": "-",
